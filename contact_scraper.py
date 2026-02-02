@@ -468,8 +468,15 @@ def deduplicate_phones(phone_list):
     
     return result
 
-def process_spreadsheet(input_file, url_column, output_file=None):
-    """Process the spreadsheet"""
+def process_spreadsheet(input_file, url_column, output_file=None, chunk_info=None):
+    """Process the spreadsheet
+    
+    Args:
+        input_file: Path to input CSV/Excel
+        url_column: Name of column containing URLs
+        output_file: Optional output filename
+        chunk_info: Optional tuple (current_chunk, total_chunks) for batch processing display
+    """
     
     print(f"\n{'='*70}")
     print(f"EMAIL & PHONE NUMBER SCRAPER v2.0")
@@ -508,7 +515,13 @@ def process_spreadsheet(input_file, url_column, output_file=None):
     
     for idx, row in df.iterrows():
         url = row[url_column]
-        progress = f"[{idx+1}/{len(df)}] "
+        
+        # Build progress string with optional chunk info
+        if chunk_info:
+            current_chunk, total_chunks = chunk_info
+            progress = f"[Chunk {current_chunk}/{total_chunks}] [{idx+1}/{len(df)}] "
+        else:
+            progress = f"[{idx+1}/{len(df)}] "
         
         if pd.isna(url) or str(url).strip() == '':
             print(f"{progress}Skipping empty URL")

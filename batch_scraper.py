@@ -11,6 +11,10 @@ from datetime import datetime
 from pathlib import Path
 import subprocess
 
+# Enable Windows terminal colors
+if os.name == 'nt':  # Windows
+    os.system('color 0A')  # Green on black
+
 # Configuration
 CHUNK_SIZE = 50
 DELAY = 2
@@ -226,9 +230,14 @@ def process_chunks(num_chunks_to_process, progress):
         
         # Call contact_scraper.py with this chunk
         try:
-            # Run contact_scraper programmatically
+            # Run contact_scraper programmatically with chunk info
             import contact_scraper as scraper
-            scraper.process_spreadsheet(str(chunk_file), "WEBSITE", str(output_file))
+            scraper.process_spreadsheet(
+                str(chunk_file), 
+                "WEBSITE", 
+                str(output_file),
+                chunk_info=(chunk_num, total_chunks)  # Pass chunk context
+            )
             
             # Mark as completed
             progress["completed_chunks"].append(chunk_num)
