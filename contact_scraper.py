@@ -137,6 +137,42 @@ def detect_country_from_phone(phone_e164):
     
     return 'UNK'
 
+def detect_country_from_domain(url):
+    """Detect country from website domain TLD"""
+    if not url:
+        return None
+    
+    try:
+        from urllib.parse import urlparse
+        domain = urlparse(url).netloc.lower()
+        
+        # TLD to country mapping
+        tld_map = {
+            '.fr': 'FR', '.es': 'ES', '.it': 'IT', '.de': 'DE', '.pt': 'PT',
+            '.be': 'BE', '.nl': 'NL', '.ch': 'CH', '.at': 'AT', '.lu': 'LU',
+            '.uk': 'GB', '.co.uk': 'GB', '.ie': 'IE', '.se': 'SE', '.no': 'NO',
+            '.dk': 'DK', '.fi': 'FI', '.pl': 'PL', '.cz': 'CZ', '.gr': 'GR',
+            '.ru': 'RU', '.ua': 'UA', '.ro': 'RO', '.hu': 'HU', '.hr': 'HR',
+            '.rs': 'RS', '.bg': 'BG', '.si': 'SI', '.sk': 'SK', '.lt': 'LT',
+            '.lv': 'LV', '.ee': 'EE', '.is': 'IS', '.tr': 'TR',
+            '.us': 'US', '.ca': 'CA', '.mx': 'MX', '.br': 'BR', '.ar': 'AR',
+            '.cl': 'CL', '.co': 'CO', '.pe': 'PE', '.ve': 'VE', '.ec': 'EC',
+            '.cn': 'CN', '.jp': 'JP', '.kr': 'KR', '.in': 'IN', '.au': 'AU',
+            '.nz': 'NZ', '.sg': 'SG', '.my': 'MY', '.th': 'TH', '.vn': 'VN',
+            '.id': 'ID', '.ph': 'PH', '.hk': 'HK', '.tw': 'TW',
+            '.za': 'ZA', '.eg': 'EG', '.ma': 'MA', '.ng': 'NG', '.ke': 'KE',
+            '.ae': 'AE', '.sa': 'SA', '.il': 'IL', '.iq': 'IQ', '.ir': 'IR',
+        }
+        
+        # Check for TLD match
+        for tld, country in tld_map.items():
+            if domain.endswith(tld):
+                return country
+        
+        return None
+    except:
+        return None
+
 def normalize_url(url):
     """Add https:// scheme, fallback to http:// if needed"""
     url = str(url).strip()
@@ -187,15 +223,32 @@ def is_gps_coordinate(text):
     return False
 
 def normalize_phone_to_e164(phone):
-    """Normalize phone to E.164 format - CONSERVATIVE approach (only if country code detected)"""
+    """Normalize phone to E.164 format - ONLY if international format is explicit
+    
+    Rules:
+    - 00XXXXXXXXXXX → +XXXXXXXXXXX (European international prefix)
+    - +XXXXXXXXXXX → Keep as-is (already international)
+    - 33XXXXXXXXX (11+ digits, starts with country code) → +33XXXXXXXXX
+    - 0XXXXXXXXX (10 digits, local) → KEEP AS-IS (don't know country!)
+    """
     if not phone:
         return None
+    
+    original_phone = phone
     
     # Remove (0) patterns: (0), ( 0 ), [0], [ 0 ]
     phone = re.sub(r'[\(\[]\s*0\s*[\)\]]', '', phone)
     
-    # Check if phone starts with + (has country code)
-    has_country_code = phone.strip().startswith('+')
+    # Check if phone starts with 00 (European international prefix)
+    if phone.strip().startswith('00'):
+        # This is INTERNATIONAL - convert 00 to +
+        phone = '+' + phone.strip()[2:]
+        has_international_indicator = True
+    # Check if phone starts with +
+    elif phone.strip().startswith('+'):
+        has_international_indicator = True
+    else:
+        has_international_indicator = False
     
     # Remove all non-digit characters except leading +
     if phone.startswith('+'):
@@ -208,10 +261,22 @@ def normalize_phone_to_e164(phone):
     if len(digits) < 9 or len(digits) > 15:
         return None
     
-    # CRITICAL: Only normalize if we detected a country code originally
-    if has_country_code:
-        # Has country code - we can normalize
-        
+    # CRITICAL RULE: Local numbers (0XXXXXXXXX with 10 digits) stay unchanged!
+    if digits.startswith('0') and len(digits) == 10 and not has_international_indicator:
+        # This is a LOCAL number - keep as-is!
+        return digits
+    
+    # Check if it looks like it has a country code (11+ digits, starts with known code)
+    if not has_international_indicator and len(digits) >= 11:
+        # Check if starts with known country code
+        for code_len in [3, 2, 1]:
+            potential_code = digits[:code_len]
+            if potential_code in COUNTRY_CODES:
+                has_international_indicator = True
+                break
+    
+    # Only normalize if we detected international format
+    if has_international_indicator:
         # Fix: Handle "+3304..." where country code has extra 0
         if digits.startswith('330') and len(digits) == 12:
             digits = '33' + digits[3:]
@@ -221,18 +286,15 @@ def normalize_phone_to_e164(phone):
         if country_code_match:
             country_code = country_code_match.group(1)
             rest = country_code_match.group(2)
-            valid_codes = ['33', '262', '41', '32', '49', '44', '39', '34', '41', '43']
-            if country_code in valid_codes:
+            if country_code in COUNTRY_CODES:
                 digits = country_code + rest
         
-        # Return normalized with +
+        # Return with + prefix
         if len(digits) >= 10:
             return '+' + digits
     else:
-        # NO country code detected - DON'T assume, just clean
-        # Return cleaned version without normalization
-        if len(digits) >= 9:
-            return digits  # No + prefix, no country assumption
+        # NO international indicator - keep as-is (cleaned)
+        return digits
     
     return None
 
@@ -534,21 +596,51 @@ def process_spreadsheet(input_file, url_column, output_file=None, chunk_info=Non
         # Deduplicate phones (removes duplicates like +33479059522 and +33047905952)
         phones = deduplicate_phones(phones)
         
+        # Remove duplicates (in case normalization created duplicates)
+        seen = set()
+        final_phones = []
+        for phone in phones:
+            if phone:
+                # Normalize for comparison (remove spaces, dashes for comparison only)
+                compare_phone = re.sub(r'[\s\-]', '', phone)
+                if compare_phone not in seen:
+                    seen.add(compare_phone)
+                    final_phones.append(phone)
+        
+        phones = final_phones
+        
         # Assign emails
         df.at[idx, 'Email_Primary'] = emails[0] if emails else ''
         df.at[idx, 'Email_Additional'] = '; '.join(sorted(emails[1:])) if len(emails) > 1 else ''
         
-        # Assign phones
+        # Determine country: First from phone (if international), then from domain
+        country = 'UNK'
         if phones:
             # Primary phone
             primary_phone = phones[0]
             df.at[idx, 'Phone_Primary'] = "'" + primary_phone
-            # Country based on PRIMARY phone only
-            df.at[idx, 'Country'] = detect_country_from_phone(primary_phone)
             
-            # Additional phones (no country column)
+            # Try to get country from phone first
+            country = detect_country_from_phone(primary_phone)
+            
+            # If phone didn't give us country (local number), try domain
+            if country == 'UNK':
+                domain_country = detect_country_from_domain(str(url))
+                if domain_country:
+                    country = domain_country
+            
+            df.at[idx, 'Country'] = country
+            
+            # Additional phones (also with ' prefix to protect + sign in Excel)
             if len(phones) > 1:
-                df.at[idx, 'Phone_Additional'] = '; '.join(sorted(phones[1:]))
+                protected_additional = ["'" + p for p in sorted(phones[1:])]
+                df.at[idx, 'Phone_Additional'] = '; '.join(protected_additional)
+        else:
+            # No phones found - try to get country from domain anyway
+            domain_country = detect_country_from_domain(str(url))
+            if domain_country:
+                country = domain_country
+            df.at[idx, 'Country'] = country
         
         df.at[idx, 'Website_Status'] = website_status
         df.at[idx, 'Scraping_Result'] = scraping_result
