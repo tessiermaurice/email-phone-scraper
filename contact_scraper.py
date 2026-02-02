@@ -9,6 +9,7 @@ from bs4 import BeautifulSoup
 import re
 import time
 from urllib.parse import urljoin, urlparse
+from html import unescape
 import sys
 
 # Configuration
@@ -27,18 +28,26 @@ def extract_emails_from_html(soup, text):
     """Extract emails from mailto links and text"""
     emails = set()
     
-    # Extract from mailto links
+    # Extract from links with various prefixes
     for link in soup.find_all('a', href=True):
         href = link['href']
-        if href.startswith('mailto:'):
-            email = href.replace('mailto:', '').split('?')[0].strip()
-            if '@' in email:
+        if href.startswith(('mailto:', 'goto:', 'email:', 'e-mail:', 'mail:')):
+            # Remove prefix and clean
+            for prefix in ['mailto:', 'goto:', 'email:', 'e-mail:', 'mail:']:
+                if href.startswith(prefix):
+                    email = href.replace(prefix, '').split('?')[0].strip()
+                    break
+            
+            # Remove whitespace and validate
+            email = re.sub(r'\s+', '', email)
+            if '@' in email and '.' in email:
                 emails.add(email.lower())
     
     # Extract from text using regex
     email_pattern = r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'
     found = re.findall(email_pattern, text)
-    emails.update([e.lower() for e in found])
+    # Normalize whitespace
+    emails.update([re.sub(r'\s+', '', e).lower() for e in found])
     
     return list(emails)
 
@@ -59,6 +68,9 @@ def is_gps_coordinate(text):
 
 def normalize_phone_to_e164(phone):
     """Normalize French phone to E.164 format"""
+    # Remove (0) patterns: (0), ( 0 ), [0], [ 0 ]
+    phone = re.sub(r'[\(\[]\s*0\s*[\)\]]', '', phone)
+    
     # Remove all non-digit characters
     digits = re.sub(r'\D', '', phone)
     
@@ -89,11 +101,16 @@ def extract_phones_from_html(soup, text):
     """Extract and validate phone numbers with GPS filtering"""
     phones = set()
     
-    # Priority: tel links
+    # Priority: tel and call links
     for link in soup.find_all('a', href=True):
         href = link['href']
-        if href.startswith('tel:'):
-            phone = href.replace('tel:', '').strip()
+        if href.startswith(('tel:', 'call:', 'callto:', 'phone:')):
+            # Remove prefix
+            for prefix in ['tel:', 'call:', 'callto:', 'phone:']:
+                if href.startswith(prefix):
+                    phone = href.replace(prefix, '').strip()
+                    break
+            
             normalized = normalize_phone_to_e164(phone)
             if normalized:
                 phones.add(normalized)
@@ -222,7 +239,7 @@ def scrape_website(url, progress_info=""):
         
         # Parse homepage
         soup = BeautifulSoup(response.text, 'html.parser')
-        text = soup.get_text(separator='\n')
+        text = unescape(soup.get_text(separator='\n'))
         
         emails = extract_emails_from_html(soup, text)
         phones = extract_phones_from_html(soup, text)
@@ -253,7 +270,7 @@ def scrape_website(url, progress_info=""):
                 contact_resp = requests.get(contact_url, timeout=TIMEOUT, headers=headers)
                 contact_resp.raise_for_status()
                 contact_soup = BeautifulSoup(contact_resp.text, 'html.parser')
-                contact_text = contact_soup.get_text(separator='\n')
+                contact_text = unescape(contact_soup.get_text(separator='\n'))
                 
                 contact_emails = extract_emails_from_html(contact_soup, contact_text)
                 contact_phones = extract_phones_from_html(contact_soup, contact_text)
@@ -274,20 +291,21 @@ def scrape_website(url, progress_info=""):
             return list(all_emails), list(all_phones), "Success"
         else:
             print(f"    ✗ No contacts found on {pages_checked} page(s)")
-            return [], [], "NoContactsFound"
+            return [], [], "No Contacts Found"
         
     except requests.Timeout:
         print(f"    ✗ Timeout")
         return list(all_emails), list(all_phones), "Timeout"
     except requests.ConnectionError:
         print(f"    ✗ Connection failed")
-        return list(all_emails), list(all_phones), "ConnectionError"
+        return list(all_emails), list(all_phones), "Unavailable"
     except requests.HTTPError as e:
-        print(f"    ✗ HTTP {e.response.status_code}")
-        return list(all_emails), list(all_phones), f"HTTPError-{e.response.status_code}"
+        status_code = e.response.status_code
+        print(f"    ✗ HTTP {status_code}")
+        return list(all_emails), list(all_phones), "Unavailable"
     except Exception as e:
         print(f"    ✗ Error: {type(e).__name__}")
-        return list(all_emails), list(all_phones), f"ParseError"
+        return list(all_emails), list(all_phones), "Unavailable"
 
 def process_spreadsheet(input_file, url_column, output_file=None):
     """Process the spreadsheet"""
@@ -316,8 +334,10 @@ def process_spreadsheet(input_file, url_column, output_file=None):
         return
     
     # Add result columns
-    df['Emails'] = ''
-    df['Phone_Numbers'] = ''
+    df['Email_Primary'] = ''
+    df['Email_Additional'] = ''
+    df['Phone_Primary'] = ''
+    df['Phone_Additional'] = ''
     df['Scrape_Status'] = ''
     
     # Process each URL
@@ -329,13 +349,15 @@ def process_spreadsheet(input_file, url_column, output_file=None):
         
         if pd.isna(url) or str(url).strip() == '':
             print(f"{progress}Skipping empty URL")
-            df.at[idx, 'Scrape_Status'] = 'EmptyURL'
+            df.at[idx, 'Scrape_Status'] = 'Unavailable'
             continue
         
         emails, phones, status = scrape_website(str(url), progress)
         
-        df.at[idx, 'Emails'] = '; '.join(sorted(emails)) if emails else ''
-        df.at[idx, 'Phone_Numbers'] = '; '.join(sorted(phones)) if phones else ''
+        df.at[idx, 'Email_Primary'] = emails[0] if emails else ''
+        df.at[idx, 'Email_Additional'] = '; '.join(sorted(emails[1:])) if len(emails) > 1 else ''
+        df.at[idx, 'Phone_Primary'] = ("'" + phones[0]) if phones else ''
+        df.at[idx, 'Phone_Additional'] = '; '.join(sorted(phones[1:])) if len(phones) > 1 else ''
         df.at[idx, 'Scrape_Status'] = status
         
         if idx < len(df) - 1:
@@ -364,8 +386,8 @@ def process_spreadsheet(input_file, url_column, output_file=None):
     print(f"SUMMARY")
     print(f"{'='*70}")
     success = len(df[df['Scrape_Status'] == 'Success'])
-    with_email = len(df[df['Emails'] != ''])
-    with_phone = len(df[df['Phone_Numbers'] != ''])
+    with_email = len(df[df['Email_Primary'] != ''])
+    with_phone = len(df[df['Phone_Primary'] != ''])
     
     print(f"✓ Success: {success}/{len(df)} sites")
     print(f"✓ Found emails: {with_email} sites")
