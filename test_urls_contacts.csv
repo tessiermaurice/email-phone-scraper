@@ -1,0 +1,11 @@
+﻿SITE INTERNET,Emails,Phone_Numbers,Scrape_Status
+https://www.hotel-aubrac.fr/,contact@hotel-aubrac.fr; hotel-aubrac@wanadoo.fr,+33565443213,Success
+https://www.lemoulindemoissac.com/,hotel@lemoulindemoissac.com,+33563328888,Success
+https://all.accor.com/hotel/A0X9/index.en.shtml,ha0x9@accor.com,+33491541952,Success
+www.saintjames-bouliac.com,reception@saintjames-bouliac.com,+33557970600,Success
+https://camping-auray.fr/,,,ConnectionError
+www.lepatiodesophie-sisteron.com,,,NoContactsFound
+https://hotel-de-monaco.mydirectstay.com/fr/,,,HTTPError-404
+www.cantudimare.com,info@cantudimare.com,+33613075310,Success
+https://www.paris-hotel-antin.com/,trinite@antinparis.com,+33148742907,Success
+www.hotelplatdetain.com,reservation@hotelplatdetain.com,+33142780404,Success
