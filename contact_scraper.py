@@ -17,6 +17,126 @@ TIMEOUT = 15
 DELAY = 2
 MAX_CONTACT_PAGES = 3
 
+# Comprehensive country code to ISO mapping with territories (200+ countries)
+COUNTRY_CODES = {
+    # Europe
+    '33': 'FR', '32': 'BE', '41': 'CH', '49': 'DE', '44': 'GB', '34': 'ES', '39': 'IT', 
+    '351': 'PT', '31': 'NL', '43': 'AT', '45': 'DK', '46': 'SE', '47': 'NO', '358': 'FI',
+    '353': 'IE', '30': 'GR', '48': 'PL', '420': 'CZ', '36': 'HU', '40': 'RO', '421': 'SK',
+    '386': 'SI', '385': 'HR', '359': 'BG', '370': 'LT', '371': 'LV', '372': 'EE', '354': 'IS',
+    '356': 'MT', '357': 'CY', '352': 'LU', '377': 'MC', '378': 'SM', '423': 'LI', '376': 'AD',
+    '382': 'ME', '381': 'RS', '383': 'XK', '387': 'BA', '389': 'MK', '355': 'AL', '373': 'MD',
+    '380': 'UA', '375': 'BY', '7': 'RU/KZ',  # Russia or Kazakhstan (ambiguous)
+    
+    # French Territories (DOM-TOM)
+    '262': 'FR-RE',  # Réunion
+    '590': 'FR-GP',  # Guadeloupe
+    '594': 'FR-GF',  # French Guiana
+    '596': 'FR-MQ',  # Martinique
+    '508': 'FR-PM',  # Saint Pierre and Miquelon
+    '681': 'FR-WF',  # Wallis and Futuna
+    '687': 'FR-NC',  # New Caledonia
+    '689': 'FR-PF',  # French Polynesia
+    
+    # UK Territories
+    '500': 'GB-FK',  # Falkland Islands
+    '350': 'GB-GI',  # Gibraltar
+    '290': 'GB-SH',  # Saint Helena
+    '247': 'GB-AC',  # Ascension Island
+    '1284': 'GB-VG', # British Virgin Islands
+    '1345': 'GB-KY', # Cayman Islands
+    '1441': 'GB-BM', # Bermuda
+    '1664': 'GB-MS', # Montserrat
+    '1649': 'GB-TC', # Turks and Caicos
+    '1264': 'GB-AI', # Anguilla
+    
+    # Spanish Territories
+    # Note: Ceuta, Melilla, Canary Islands use regular +34 (same as mainland Spain)
+    # But we can note them in comments for awareness
+    
+    # Netherlands Territories
+    '297': 'NL-AW',  # Aruba
+    '599': 'NL-CW',  # Curaçao
+    '5999': 'NL-CW', # Curaçao (alternative)
+    '721': 'NL-SX',  # Sint Maarten
+    
+    # US Territories
+    '1340': 'US-VI', # US Virgin Islands
+    '1670': 'US-MP', # Northern Mariana Islands
+    '1671': 'US-GU', # Guam
+    '1684': 'US-AS', # American Samoa
+    '1787': 'US-PR', # Puerto Rico
+    '1939': 'US-PR', # Puerto Rico
+    
+    # Danish Territories
+    '299': 'DK-GL',  # Greenland
+    '298': 'DK-FO',  # Faroe Islands
+    
+    # Australian Territories
+    '672': 'AU-NF',  # Norfolk Island
+    '6189164': 'AU-CX', # Christmas Island (uses AU +61)
+    
+    # New Zealand Territories
+    '682': 'NZ-CK',  # Cook Islands
+    '683': 'NZ-NU',  # Niue
+    '690': 'NZ-TK',  # Tokelau
+    
+    # Portuguese Territories
+    '351': 'PT',     # Mainland + Azores + Madeira (all use same code)
+    
+    # Americas
+    '1': 'US/CA',    # USA/Canada (ambiguous without area code analysis)
+    '52': 'MX', '54': 'AR', '55': 'BR', '56': 'CL', '57': 'CO', '51': 'PE',
+    '58': 'VE', '593': 'EC', '591': 'BO', '595': 'PY', '598': 'UY', '506': 'CR', '507': 'PA',
+    '53': 'CU', '509': 'HT', '1809': 'DO', '1829': 'DO', '1849': 'DO', '502': 'GT', '503': 'SV',
+    '504': 'HN', '505': 'NI', '501': 'BZ',
+    
+    # Caribbean (independent nations)
+    '1242': 'BS', '1246': 'BB', '1268': 'AG', '1473': 'GD', '1758': 'LC', 
+    '1767': 'DM', '1784': 'VC', '1868': 'TT', '1869': 'KN', '1876': 'JM',
+    
+    # Asia
+    '86': 'CN', '91': 'IN', '81': 'JP', '82': 'KR', '886': 'TW', '852': 'HK', '853': 'MO',
+    '65': 'SG', '60': 'MY', '66': 'TH', '84': 'VN', '62': 'ID', '63': 'PH', '95': 'MM',
+    '855': 'KH', '856': 'LA', '673': 'BN', '670': 'TL', '92': 'PK', '880': 'BD', '94': 'LK',
+    '977': 'NP', '975': 'BT', '960': 'MV', '93': 'AF', '98': 'IR', '964': 'IQ', '962': 'JO',
+    '961': 'LB', '963': 'SY', '972': 'IL', '970': 'PS', '971': 'AE', '966': 'SA', '968': 'OM',
+    '965': 'KW', '973': 'BH', '974': 'QA', '967': 'YE', '90': 'TR', '994': 'AZ', '995': 'GE',
+    '374': 'AM', '992': 'TJ', '993': 'TM', '998': 'UZ', '996': 'KG',
+    
+    # Middle East & North Africa
+    '20': 'EG', '212': 'MA', '213': 'DZ', '216': 'TN', '218': 'LY', '249': 'SD',
+    
+    # Sub-Saharan Africa
+    '27': 'ZA', '254': 'KE', '255': 'TZ', '256': 'UG', '234': 'NG', '233': 'GH', '225': 'CI',
+    '221': 'SN', '223': 'ML', '226': 'BF', '227': 'NE', '228': 'TG', '229': 'BJ', '230': 'MU',
+    '231': 'LR', '232': 'SL', '235': 'TD', '236': 'CF', '237': 'CM', '238': 'CV', '239': 'ST',
+    '240': 'GQ', '241': 'GA', '242': 'CG', '243': 'CD', '244': 'AO', '245': 'GW', '246': 'IO',
+    '248': 'SC', '250': 'RW', '251': 'ET', '252': 'SO', '253': 'DJ', '257': 'BI', '258': 'MZ',
+    '260': 'ZM', '261': 'MG', '263': 'ZW', '264': 'NA', '265': 'MW', '266': 'LS', '267': 'BW',
+    '268': 'SZ', '269': 'KM',
+    
+    # Oceania
+    '61': 'AU', '64': 'NZ', '679': 'FJ', '675': 'PG', '676': 'TO', '677': 'SB', '678': 'VU',
+    '685': 'WS', '686': 'KI', '688': 'TV', '691': 'FM', '692': 'MH', '680': 'PW',
+}
+
+def detect_country_from_phone(phone_e164):
+    """Detect country ISO code from E.164 phone number"""
+    if not phone_e164 or not phone_e164.startswith('+'):
+        return 'UNK'
+    
+    # Remove + and try to match country codes (try longest first)
+    digits = phone_e164[1:]
+    
+    # Try 4-digit codes first (like 1242, 1787, 1670, etc.)
+    for length in [7, 6, 5, 4, 3, 2, 1]:
+        code = digits[:length]
+        if code in COUNTRY_CODES:
+            return COUNTRY_CODES[code]
+    
+    return 'UNK'
+
 def normalize_url(url):
     """Add https:// scheme, fallback to http:// if needed"""
     url = str(url).strip()
@@ -67,35 +187,54 @@ def is_gps_coordinate(text):
     return False
 
 def normalize_phone_to_e164(phone):
-    """Normalize French phone to E.164 format"""
+    """Normalize phone to E.164 format - CONSERVATIVE approach (only if country code detected)"""
+    if not phone:
+        return None
+    
     # Remove (0) patterns: (0), ( 0 ), [0], [ 0 ]
     phone = re.sub(r'[\(\[]\s*0\s*[\)\]]', '', phone)
     
-    # Remove all non-digit characters
-    digits = re.sub(r'\D', '', phone)
+    # Check if phone starts with + (has country code)
+    has_country_code = phone.strip().startswith('+')
+    
+    # Remove all non-digit characters except leading +
+    if phone.startswith('+'):
+        digits = '+' + re.sub(r'\D', '', phone[1:])
+        digits = digits.lstrip('+')  # Remove + for processing
+    else:
+        digits = re.sub(r'\D', '', phone)
     
     # Too short or too long
     if len(digits) < 9 or len(digits) > 15:
         return None
     
-    # French number starting with 0 (10 digits)
-    if len(digits) == 10 and digits.startswith('0'):
-        return '+33' + digits[1:]
-    
-    # Already has country code
-    if digits.startswith('33') and len(digits) == 11:
-        return '+' + digits
-    
-    # International format
-    if len(digits) >= 10 and (digits.startswith('1') or digits.startswith('2') or 
-                               digits.startswith('3') or digits.startswith('4') or
-                               digits.startswith('5') or digits.startswith('6') or
-                               digits.startswith('7') or digits.startswith('8') or
-                               digits.startswith('9')):
-        if not digits.startswith('33'):
+    # CRITICAL: Only normalize if we detected a country code originally
+    if has_country_code:
+        # Has country code - we can normalize
+        
+        # Fix: Handle "+3304..." where country code has extra 0
+        if digits.startswith('330') and len(digits) == 12:
+            digits = '33' + digits[3:]
+        
+        # Fix: Handle any country code followed by extra 0
+        country_code_match = re.match(r'^(\d{2,3})0(\d{9})$', digits)
+        if country_code_match:
+            country_code = country_code_match.group(1)
+            rest = country_code_match.group(2)
+            valid_codes = ['33', '262', '41', '32', '49', '44', '39', '34', '41', '43']
+            if country_code in valid_codes:
+                digits = country_code + rest
+        
+        # Return normalized with +
+        if len(digits) >= 10:
             return '+' + digits
+    else:
+        # NO country code detected - DON'T assume, just clean
+        # Return cleaned version without normalization
+        if len(digits) >= 9:
+            return digits  # No + prefix, no country assumption
     
-    return '+' + digits if len(digits) >= 10 else None
+    return None
 
 def extract_phones_from_html(soup, text):
     """Extract and validate phone numbers with GPS filtering"""
@@ -307,6 +446,28 @@ def scrape_website(url, progress_info=""):
         print(f"    ✗ Error: {type(e).__name__}")
         return list(all_emails), list(all_phones), "Unavailable", "Error"
 
+def deduplicate_phones(phone_list):
+    """Remove duplicate phone numbers that are the same number in different formats"""
+    if not phone_list:
+        return []
+    
+    # Normalize all phones
+    normalized = []
+    for phone in phone_list:
+        norm = normalize_phone_to_e164(phone)
+        if norm:
+            normalized.append(norm)
+    
+    # Remove exact duplicates (preserving order)
+    seen = set()
+    result = []
+    for phone in normalized:
+        if phone not in seen:
+            seen.add(phone)
+            result.append(phone)
+    
+    return result
+
 def process_spreadsheet(input_file, url_column, output_file=None):
     """Process the spreadsheet"""
     
@@ -336,6 +497,7 @@ def process_spreadsheet(input_file, url_column, output_file=None):
     # Add result columns
     df['Email_Primary'] = ''
     df['Email_Additional'] = ''
+    df['Country'] = ''
     df['Phone_Primary'] = ''
     df['Phone_Additional'] = ''
     df['Website_Status'] = ''
@@ -356,10 +518,25 @@ def process_spreadsheet(input_file, url_column, output_file=None):
         
         emails, phones, website_status, scraping_result = scrape_website(str(url), progress)
         
+        # Deduplicate phones (removes duplicates like +33479059522 and +33047905952)
+        phones = deduplicate_phones(phones)
+        
+        # Assign emails
         df.at[idx, 'Email_Primary'] = emails[0] if emails else ''
         df.at[idx, 'Email_Additional'] = '; '.join(sorted(emails[1:])) if len(emails) > 1 else ''
-        df.at[idx, 'Phone_Primary'] = ("'" + phones[0]) if phones else ''
-        df.at[idx, 'Phone_Additional'] = '; '.join(sorted(phones[1:])) if len(phones) > 1 else ''
+        
+        # Assign phones
+        if phones:
+            # Primary phone
+            primary_phone = phones[0]
+            df.at[idx, 'Phone_Primary'] = "'" + primary_phone
+            # Country based on PRIMARY phone only
+            df.at[idx, 'Country'] = detect_country_from_phone(primary_phone)
+            
+            # Additional phones (no country column)
+            if len(phones) > 1:
+                df.at[idx, 'Phone_Additional'] = '; '.join(sorted(phones[1:]))
+        
         df.at[idx, 'Website_Status'] = website_status
         df.at[idx, 'Scraping_Result'] = scraping_result
         
