@@ -210,7 +210,7 @@ def process_chunks(num_chunks_to_process, progress):
         try:
             # Run contact_scraper programmatically
             import contact_scraper as scraper
-            scraper.process_spreadsheet(str(chunk_file), "SITE INTERNET", str(output_file))
+            scraper.process_spreadsheet(str(chunk_file), "WEBSITE", str(output_file))
             
             # Mark as completed
             progress["completed_chunks"].append(chunk_num)
