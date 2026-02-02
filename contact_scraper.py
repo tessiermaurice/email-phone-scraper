@@ -207,7 +207,7 @@ def find_contact_page_links(soup, base_url):
     return list(set(contact_urls))[:MAX_CONTACT_PAGES]
 
 def scrape_website(url, progress_info=""):
-    """Scrape website for emails and phones with early stopping"""
+    """Scrape website for emails and phones with early stopping - returns (emails, phones, website_status, scraping_result)"""
     all_emails = set()
     all_phones = set()
     pages_checked = 0
@@ -288,24 +288,24 @@ def scrape_website(url, progress_info=""):
         # Determine status
         if all_emails or all_phones:
             print(f"    ✓ Total: {len(all_emails)} email(s), {len(all_phones)} phone(s) from {pages_checked} page(s)")
-            return list(all_emails), list(all_phones), "Success"
+            return list(all_emails), list(all_phones), "OK", "Success"
         else:
             print(f"    ✗ No contacts found on {pages_checked} page(s)")
-            return [], [], "No Contacts Found"
+            return [], [], "OK", "No Contacts Found"
         
     except requests.Timeout:
         print(f"    ✗ Timeout")
-        return list(all_emails), list(all_phones), "Unavailable - Timeout"
+        return list(all_emails), list(all_phones), "Unavailable", "Timeout"
     except requests.ConnectionError:
         print(f"    ✗ Connection failed")
-        return list(all_emails), list(all_phones), "Unavailable - Connection Failed"
+        return list(all_emails), list(all_phones), "Unavailable", "Connection Failed"
     except requests.HTTPError as e:
         status_code = e.response.status_code
         print(f"    ✗ HTTP {status_code}")
-        return list(all_emails), list(all_phones), "Unavailable - Does Not Exist"
+        return list(all_emails), list(all_phones), "Unavailable", "Does Not Exist"
     except Exception as e:
         print(f"    ✗ Error: {type(e).__name__}")
-        return list(all_emails), list(all_phones), "Unavailable - Error"
+        return list(all_emails), list(all_phones), "Unavailable", "Error"
 
 def process_spreadsheet(input_file, url_column, output_file=None):
     """Process the spreadsheet"""
@@ -338,7 +338,8 @@ def process_spreadsheet(input_file, url_column, output_file=None):
     df['Email_Additional'] = ''
     df['Phone_Primary'] = ''
     df['Phone_Additional'] = ''
-    df['Scrape_Status'] = ''
+    df['Website_Status'] = ''
+    df['Scraping_Result'] = ''
     
     # Process each URL
     print(f"🌐 Scraping {len(df)} websites...\n")
@@ -349,16 +350,18 @@ def process_spreadsheet(input_file, url_column, output_file=None):
         
         if pd.isna(url) or str(url).strip() == '':
             print(f"{progress}Skipping empty URL")
-            df.at[idx, 'Scrape_Status'] = 'Unavailable - No URL'
+            df.at[idx, 'Website_Status'] = 'Unavailable'
+            df.at[idx, 'Scraping_Result'] = 'No URL'
             continue
         
-        emails, phones, status = scrape_website(str(url), progress)
+        emails, phones, website_status, scraping_result = scrape_website(str(url), progress)
         
         df.at[idx, 'Email_Primary'] = emails[0] if emails else ''
         df.at[idx, 'Email_Additional'] = '; '.join(sorted(emails[1:])) if len(emails) > 1 else ''
         df.at[idx, 'Phone_Primary'] = ("'" + phones[0]) if phones else ''
         df.at[idx, 'Phone_Additional'] = '; '.join(sorted(phones[1:])) if len(phones) > 1 else ''
-        df.at[idx, 'Scrape_Status'] = status
+        df.at[idx, 'Website_Status'] = website_status
+        df.at[idx, 'Scraping_Result'] = scraping_result
         
         if idx < len(df) - 1:
             time.sleep(DELAY)
@@ -385,11 +388,13 @@ def process_spreadsheet(input_file, url_column, output_file=None):
     print(f"{'='*70}")
     print(f"SUMMARY")
     print(f"{'='*70}")
-    success = len(df[df['Scrape_Status'] == 'Success'])
+    success = len(df[df['Scraping_Result'] == 'Success'])
+    websites_ok = len(df[df['Website_Status'] == 'OK'])
     with_email = len(df[df['Email_Primary'] != ''])
     with_phone = len(df[df['Phone_Primary'] != ''])
     
-    print(f"✓ Success: {success}/{len(df)} sites")
+    print(f"✓ Websites accessible: {websites_ok}/{len(df)} sites")
+    print(f"✓ Scraping success: {success}/{len(df)} sites")
     print(f"✓ Found emails: {with_email} sites")
     print(f"✓ Found phones: {with_phone} sites")
     print(f"\n📁 Output: {output_file}\n")
