@@ -151,33 +151,51 @@ def display_status(progress):
         stats = progress["stats"]
         total = stats["total_processed"]
         
-        print(f"\n📈 RESULTS FROM COMPLETED CHUNKS:")
-        print("-"*70)
-        print(f"Websites accessible (OK): {stats['websites_ok']}/{total} ({stats['websites_ok']/total*100:.1f}%)")
-        print(f"Websites unavailable: {stats['websites_unavailable']}/{total} ({stats['websites_unavailable']/total*100:.1f}%)")
-        
-        print(f"\nContacts found (Success): {stats['success']}/{total} ({stats['success']/total*100:.1f}%)")
-        print(f"  → Hotels with emails: {stats['emails_found']}")
-        print(f"  → Hotels with phones: {stats['phones_found']}")
-        
-        print(f"\nNo contacts found: {stats['no_contacts']}/{total} ({stats['no_contacts']/total*100:.1f}%)")
-        
-        failed_total = stats['timeout'] + stats['connection_failed'] + stats['does_not_exist'] + stats['error']
-        if failed_total > 0:
-            print(f"\nFailed to scrape: {failed_total}/{total} ({failed_total/total*100:.1f}%)")
-            if stats['timeout'] > 0:
-                print(f"  → Timeout: {stats['timeout']}")
-            if stats['connection_failed'] > 0:
-                print(f"  → Connection Failed: {stats['connection_failed']}")
-            if stats['does_not_exist'] > 0:
-                print(f"  → Does Not Exist: {stats['does_not_exist']}")
-            if stats['error'] > 0:
-                print(f"  → Error: {stats['error']}")
+        if total > 0:  # Only show stats if we have actual data
+            print(f"\n📈 RESULTS FROM COMPLETED CHUNKS:")
+            print("-"*70)
+            print(f"Websites accessible (OK): {stats['websites_ok']}/{total} ({stats['websites_ok']/total*100:.1f}%)")
+            print(f"Websites unavailable: {stats['websites_unavailable']}/{total} ({stats['websites_unavailable']/total*100:.1f}%)")
+            
+            print(f"\nContacts found (Success): {stats['success']}/{total} ({stats['success']/total*100:.1f}%)")
+            print(f"  → Hotels with emails: {stats['emails_found']}")
+            print(f"  → Hotels with phones: {stats['phones_found']}")
+            
+            print(f"\nNo contacts found: {stats['no_contacts']}/{total} ({stats['no_contacts']/total*100:.1f}%)")
+            
+            failed_total = stats['timeout'] + stats['connection_failed'] + stats['does_not_exist'] + stats['error']
+            if failed_total > 0:
+                print(f"\nFailed to scrape: {failed_total}/{total} ({failed_total/total*100:.1f}%)")
+                if stats['timeout'] > 0:
+                    print(f"  → Timeout: {stats['timeout']}")
+                if stats['connection_failed'] > 0:
+                    print(f"  → Connection Failed: {stats['connection_failed']}")
+                if stats['does_not_exist'] > 0:
+                    print(f"  → Does Not Exist: {stats['does_not_exist']}")
+                if stats['error'] > 0:
+                    print(f"  → Error: {stats['error']}")
+        else:
+            print(f"\n⚠️  {completed} chunk(s) marked as complete but contain no data")
+            print(f"   These will be re-processed on next run")
         
         if progress["last_run"]:
             print(f"\n📅 Last run: {progress['last_run']}")
     
     print("\n" + "="*70)
+
+def is_chunk_completed(chunk_num):
+    """Check if chunk is actually completed with data"""
+    result_file = RESULTS_DIR / f"chunk_{chunk_num:03d}_contacts.csv"
+    
+    if not result_file.exists():
+        return False
+    
+    # Check if file has actual data (more than just header row)
+    try:
+        df = pd.read_csv(result_file)
+        return len(df) > 0  # Has at least 1 row of data
+    except:
+        return False
 
 def process_chunks(num_chunks_to_process, progress):
     """Process specified number of chunks"""
@@ -187,7 +205,7 @@ def process_chunks(num_chunks_to_process, progress):
     # Find next chunks to process
     chunks_to_process = []
     for i in range(1, total_chunks + 1):
-        if i not in completed_chunks:
+        if i not in completed_chunks or not is_chunk_completed(i):
             chunks_to_process.append(i)
             if len(chunks_to_process) >= num_chunks_to_process:
                 break
