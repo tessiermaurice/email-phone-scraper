@@ -253,7 +253,7 @@ def scrape_website(url, progress_info=""):
         # Early stop if we have both email and phone
         if all_emails and all_phones:
             print(f"    ✓ Found email + phone, stopping early")
-            return list(all_emails), list(all_phones), "Success"
+            return list(all_emails), list(all_phones), "OK", "Success"
         
         # Check contact pages
         contact_pages = find_contact_page_links(soup, url)
