@@ -295,17 +295,17 @@ def scrape_website(url, progress_info=""):
         
     except requests.Timeout:
         print(f"    ✗ Timeout")
-        return list(all_emails), list(all_phones), "Timeout"
+        return list(all_emails), list(all_phones), "Unavailable - Timeout"
     except requests.ConnectionError:
         print(f"    ✗ Connection failed")
-        return list(all_emails), list(all_phones), "Unavailable"
+        return list(all_emails), list(all_phones), "Unavailable - Connection Failed"
     except requests.HTTPError as e:
         status_code = e.response.status_code
         print(f"    ✗ HTTP {status_code}")
-        return list(all_emails), list(all_phones), "Unavailable"
+        return list(all_emails), list(all_phones), "Unavailable - Does Not Exist"
     except Exception as e:
         print(f"    ✗ Error: {type(e).__name__}")
-        return list(all_emails), list(all_phones), "Unavailable"
+        return list(all_emails), list(all_phones), "Unavailable - Error"
 
 def process_spreadsheet(input_file, url_column, output_file=None):
     """Process the spreadsheet"""
@@ -349,7 +349,7 @@ def process_spreadsheet(input_file, url_column, output_file=None):
         
         if pd.isna(url) or str(url).strip() == '':
             print(f"{progress}Skipping empty URL")
-            df.at[idx, 'Scrape_Status'] = 'Unavailable'
+            df.at[idx, 'Scrape_Status'] = 'Unavailable - No URL'
             continue
         
         emails, phones, status = scrape_website(str(url), progress)
