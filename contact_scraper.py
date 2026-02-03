@@ -509,7 +509,12 @@ def scrape_website(url, progress_info=""):
         return list(all_emails), list(all_phones), "Unavailable", "Error"
 
 def deduplicate_phones(phone_list):
-    """Remove duplicate phone numbers that are the same number in different formats"""
+    """Remove duplicate phone numbers that are the same number in different formats
+    
+    Compares last 9 digits to catch duplicates like:
+    - +33479059522 and 0479059522 (same number, different format)
+    - +33479059522 and +33479059522 (exact duplicate)
+    """
     if not phone_list:
         return []
     
@@ -520,13 +525,24 @@ def deduplicate_phones(phone_list):
         if norm:
             normalized.append(norm)
     
-    # Remove exact duplicates (preserving order)
-    seen = set()
+    # Deduplicate by last 9 digits
+    seen_cores = set()
     result = []
+    
     for phone in normalized:
-        if phone not in seen:
-            seen.add(phone)
+        # Get last 9 digits for comparison
+        digits_only = re.sub(r'\D', '', phone)
+        
+        if len(digits_only) >= 9:
+            core = digits_only[-9:]  # Last 9 digits
+        else:
+            core = digits_only  # Use all digits if less than 9
+        
+        # Check if we've seen this core before
+        if core not in seen_cores:
+            seen_cores.add(core)
             result.append(phone)
+        # else: duplicate detected, skip it
     
     return result
 
@@ -593,18 +609,20 @@ def process_spreadsheet(input_file, url_column, output_file=None, chunk_info=Non
         
         emails, phones, website_status, scraping_result = scrape_website(str(url), progress)
         
-        # Deduplicate phones (removes duplicates like +33479059522 and +33047905952)
+        # Deduplicate phones (removes duplicates by comparing last 9 digits)
         phones = deduplicate_phones(phones)
         
-        # Remove duplicates (in case normalization created duplicates)
-        seen = set()
+        # Final safety check: remove any remaining duplicates by last 9 digits
+        seen_cores = set()
         final_phones = []
         for phone in phones:
             if phone:
-                # Normalize for comparison (remove spaces, dashes for comparison only)
-                compare_phone = re.sub(r'[\s\-]', '', phone)
-                if compare_phone not in seen:
-                    seen.add(compare_phone)
+                # Get last 9 digits
+                digits_only = re.sub(r'\D', '', phone)
+                core = digits_only[-9:] if len(digits_only) >= 9 else digits_only
+                
+                if core not in seen_cores:
+                    seen_cores.add(core)
                     final_phones.append(phone)
         
         phones = final_phones
