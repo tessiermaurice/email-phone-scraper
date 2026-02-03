@@ -41,7 +41,13 @@ def load_progress():
     """Load progress from JSON file"""
     if PROGRESS_FILE.exists():
         with open(PROGRESS_FILE, 'r') as f:
-            return json.load(f)
+            progress = json.load(f)
+            
+            # Clean up any duplicate chunk numbers (bug fix)
+            if "completed_chunks" in progress:
+                progress["completed_chunks"] = sorted(list(set(progress["completed_chunks"])))
+            
+            return progress
     return {
         "total_chunks": 0,
         "chunk_size": CHUNK_SIZE,
@@ -239,9 +245,10 @@ def process_chunks(num_chunks_to_process, progress):
                 chunk_info=(chunk_num, total_chunks)  # Pass chunk context
             )
             
-            # Mark as completed
-            progress["completed_chunks"].append(chunk_num)
-            progress["completed_chunks"].sort()
+            # Mark as completed (avoid duplicates by converting to set and back)
+            completed_set = set(progress["completed_chunks"])
+            completed_set.add(chunk_num)
+            progress["completed_chunks"] = sorted(list(completed_set))
             
             # Update stats
             progress["stats"] = calculate_stats_from_results()
