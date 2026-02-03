@@ -38,7 +38,7 @@ def ensure_directories():
     FINAL_DIR.mkdir(exist_ok=True)
 
 def load_progress():
-    """Load progress from JSON file"""
+    """Load progress from JSON file and validate against actual files"""
     if PROGRESS_FILE.exists():
         with open(PROGRESS_FILE, 'r') as f:
             progress = json.load(f)
@@ -46,6 +46,23 @@ def load_progress():
             # Clean up any duplicate chunk numbers (bug fix)
             if "completed_chunks" in progress:
                 progress["completed_chunks"] = sorted(list(set(progress["completed_chunks"])))
+            
+            # CRITICAL: Validate against actual result files
+            # Remove chunk numbers that don't have corresponding result files with data
+            if "completed_chunks" in progress:
+                validated_chunks = []
+                for chunk_num in progress["completed_chunks"]:
+                    if is_chunk_completed(chunk_num):
+                        validated_chunks.append(chunk_num)
+                
+                # Update if we found discrepancies
+                if len(validated_chunks) != len(progress["completed_chunks"]):
+                    print(f"⚠️  Fixed progress file: {len(progress['completed_chunks'])} → {len(validated_chunks)} actual chunks")
+                    progress["completed_chunks"] = validated_chunks
+                    
+                    # Recalculate stats from actual files
+                    progress["stats"] = calculate_stats_from_results()
+                    save_progress(progress)
             
             return progress
     return {
