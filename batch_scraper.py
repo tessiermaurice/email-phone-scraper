@@ -310,8 +310,131 @@ def process_chunks(num_chunks_to_process, progress):
     
     print("\n" + "="*70)
 
+def retry_connection_failures():
+    """Retry websites that failed due to connection issues"""
+    print("\n🔍 Scanning for connection failures...")
+    
+    result_files = sorted(RESULTS_DIR.glob("chunk_*_contacts.csv"))
+    
+    if not result_files:
+        print("✗ No result files found!")
+        return False
+    
+    # Find all connection failures
+    retry_list = []
+    for result_file in result_files:
+        try:
+            df = pd.read_csv(result_file)
+            for idx, row in df.iterrows():
+                if row['Scraping_Result'] == 'Connection Failed':
+                    retry_list.append({
+                        'file': result_file,
+                        'row_index': idx,
+                        'url': row['WEBSITE']
+                    })
+        except Exception as e:
+            print(f"Warning: Could not read {result_file.name}: {e}")
+            continue
+    
+    if not retry_list:
+        print("✓ No connection failures found - all good!")
+        return False
+    
+    print(f"\n⚠️  Found {len(retry_list)} sites with connection failures")
+    print(f"   Retrying might recover 20-40 more contacts!")
+    print(f"   Estimated time: ~{len(retry_list) * 2 / 60:.1f} minutes")
+    
+    choice = input("\n🔄 Retry these sites? (y/n): ").strip().lower()
+    
+    if choice != 'y':
+        print("Skipping retry...")
+        return False
+    
+    print(f"\n🔄 Retrying {len(retry_list)} websites...\n")
+    
+    recovered = 0
+    still_failed = 0
+    
+    # Import scraper
+    import contact_scraper as scraper
+    
+    for i, item in enumerate(retry_list, 1):
+        progress_msg = f"[{i}/{len(retry_list)}] "
+        
+        try:
+            # Retry the website
+            emails, phones, website_status, scraping_result = scraper.scrape_website(
+                item['url'], 
+                progress_msg
+            )
+            
+            # Deduplicate phones
+            phones = scraper.deduplicate_phones(phones)
+            
+            # If successful, update the original chunk file
+            if scraping_result == 'Success' or (emails or phones):
+                df = pd.read_csv(item['file'])
+                
+                # Update the exact row
+                df.at[item['row_index'], 'Email_Primary'] = emails[0] if emails else ''
+                df.at[item['row_index'], 'Email_Additional'] = '; '.join(sorted(emails[1:])) if len(emails) > 1 else ''
+                
+                # Determine country and assign phones
+                country = 'UNK'
+                if phones:
+                    primary_phone = phones[0]
+                    df.at[item['row_index'], 'Phone_Primary'] = "'" + primary_phone
+                    
+                    # Try to get country from phone
+                    country = scraper.detect_country_from_phone(primary_phone)
+                    
+                    # If phone didn't give us country, try domain
+                    if country == 'UNK':
+                        domain_country = scraper.detect_country_from_domain(item['url'])
+                        if domain_country:
+                            country = domain_country
+                    
+                    # Additional phones
+                    if len(phones) > 1:
+                        protected_additional = ["'" + p for p in sorted(phones[1:])]
+                        df.at[item['row_index'], 'Phone_Additional'] = '; '.join(protected_additional)
+                
+                df.at[item['row_index'], 'Country'] = country
+                df.at[item['row_index'], 'Website_Status'] = website_status
+                df.at[item['row_index'], 'Scraping_Result'] = scraping_result
+                
+                # Save updated chunk
+                df.to_csv(item['file'], index=False)
+                recovered += 1
+                print(f"  ✓ Recovered!")
+            else:
+                still_failed += 1
+                print(f"  ✗ Still failed: {scraping_result}")
+            
+            # Delay between requests
+            if i < len(retry_list):
+                time.sleep(2)
+        
+        except Exception as e:
+            print(f"  ✗ Error: {e}")
+            still_failed += 1
+            continue
+    
+    print("\n" + "="*70)
+    print(f"RETRY COMPLETE!")
+    print("="*70)
+    print(f"✓ Recovered: {recovered} sites")
+    print(f"✗ Still failed: {still_failed} sites")
+    print("="*70 + "\n")
+    
+    return recovered > 0
+
 def merge_results(progress):
     """Merge all result chunks into final file"""
+    
+    # First, offer to retry connection failures
+    retry_connection_failures()
+    
     print("\n📁 Merging all results into final file...")
     
     result_files = sorted(RESULTS_DIR.glob("chunk_*_contacts.csv"))
